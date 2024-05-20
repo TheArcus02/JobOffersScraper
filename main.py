@@ -5,7 +5,10 @@ import re
 import requests
 from dotenv import load_dotenv
 
+from database import Database
+
 load_dotenv()
+db = Database()
 
 
 def login():
@@ -83,10 +86,22 @@ def offers_parser(filename: str):
             return None
 
 
+def save_offers_to_db(offers):
+    pass
+    for offer in offers:
+        if not db.offer_exists_from_json(offer):
+            db.save_offer_from_json(offer)
+
+
 if __name__ == '__main__':
+    pass
     # token = login()
     # print(token)
     # page_html = scrapper_get_page()
     # save_to_file(page_html, 'offers_page.html')
-    offers = offers_parser('offers_page.html')
-    print(json.dumps(offers, indent=4, ensure_ascii=False))
+    # offers = offers_parser('offers_page.html')
+    # save_to_file(json.dumps(offers, indent=4), 'offers.json')
+    # save_offers_to_db(offers)
+    all = db.get_all()
+    print(all)
+    db.close_connection()
