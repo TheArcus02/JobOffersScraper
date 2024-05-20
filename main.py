@@ -5,6 +5,7 @@ import re
 import requests
 from dotenv import load_dotenv
 
+from constants import JSON_PATTERN
 from database import Database
 
 load_dotenv()
@@ -47,9 +48,8 @@ def login():
         return None
 
 
-def scrapper_get_page():
+def scrapper_get_page(url):
     pass
-    url = 'https://it.pracuj.pl/praca?et=1%2C3%2C17&itth=33%2C34%2C36%2C37%2C42%2C73%2C76%2C213%2C77&pn=1'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     }
@@ -73,17 +73,21 @@ def offers_parser(filename: str):
     pass
     with open(filename, 'r', encoding='utf-8') as file:
         html = file.read()
-        pattern = r'<script\s+id="__NEXT_DATA__"\s+type="application\/json">\{.*?\}<\/script>'
-        match = re.search(pattern, html)
-        if match:
-            json_data = match.group(0)
-            start_index = json_data.find('{')
-            end_index = json_data.rfind('}') + 1
-            offers = json.loads(json_data[start_index:end_index])
-            return offers['props']['pageProps']['data']['jobOffers']['groupedOffers']
-        else:
-            print(f'Not found data inside: {filename}')
-            return None
+        offers = get_json_from_html(html)
+        return offers['props']['pageProps']['data']['jobOffers']['groupedOffers']
+
+
+def get_json_from_html(html):
+    match = re.search(JSON_PATTERN, html)
+    if match:
+        data = match.group(0)
+        start_index = data.find('{')
+        end_index = data.rfind('}') + 1
+        json_data = json.loads(data[start_index:end_index])
+        return json_data
+    else:
+        print(f'Not matches...')
+        return None
 
 
 def save_offers_to_db(offers):
@@ -93,15 +97,96 @@ def save_offers_to_db(offers):
             db.save_offer_from_json(offer)
 
 
+def get_offer_details(offer_id):
+    pass
+    offer_from_db = db.get_offer_by_id(offer_id)
+    uri = offer_from_db['absoluteUri']
+    if os.path.exists('offerDetails.html'):
+        with open('offerDetails.html', 'r', encoding='utf-8') as file:
+            html = file.read()
+    else:
+        html = scrapper_get_page(uri)
+        save_to_file(html, 'offerDetails.html')
+    offer_details = get_json_from_html(html)
+    return offer_details['props']['pageProps']['dehydratedState']['queries'][0]['state']['data']
+
+
+def check_if_offer_fits(offer):
+    pass
+
+
+def extract_offer_details(offer_json):
+    offer_details = {
+        "publicationDetails": {
+            "isActive": offer_json.get("publicationDetails", {}).get("isActive")
+        },
+        "attributes": {
+            "jobTitle": offer_json.get("attributes", {}).get("jobTitle"),
+            "applying": {
+                "applyURL": offer_json.get("attributes", {}).get("applying", {}).get("applyURL"),
+                "oneClickApply": offer_json.get("attributes", {}).get("applying", {}).get("oneClickApply")
+            },
+            "workplaces": [
+                {
+                    "inlandLocation": {
+                        "location": {
+                            "name": workplace.get("inlandLocation", {}).get('location').get("name")
+                        }
+                    }
+                } for workplace in offer_json.get("attributes", {}).get("workplaces", [])
+            ],
+            "employment": {
+                "positionLevels": [
+                    {"name": level.get("name")} for level in
+                    offer_json.get("attributes", {}).get("employment", {}).get("positionLevels", [])
+                ],
+                "entirelyRemoteWork": offer_json.get("attributes", {}).get("employment", {}).get("entirelyRemoteWork"),
+                "workSchedules": [
+                    {"name": schedule.get("name")} for schedule in
+                    offer_json.get("attributes", {}).get("employment", {}).get("workSchedules", [])
+                ],
+                "typesOfContracts": [
+                    {
+                        "name": contract.get("name"),
+                        "salary": {
+                            "from": contract.get("salary", {}).get("from"),
+                            "to": contract.get("salary", {}).get("to"),
+                            "currency": contract.get("salary", {}).get("currency", {}).get("code"),
+                            "salaryKind": contract.get("salary", {}).get("salaryKind", {}).get("name")
+                        }
+                    } for contract in offer_json.get("attributes", {}).get("employment", {}).get("typesOfContracts", [])
+                ],
+                "workModes": [
+                    {"name": mode.get("name")} for mode in
+                    offer_json.get("attributes", {}).get("employment", {}).get("workModes", [])
+                ]
+            },
+            "textSections": [
+                {
+                    "sectionType": section.get("sectionType"),
+                    "plainText": section.get("plainText"),
+                    "textElements": section.get("textElements", [])
+                } for section in offer_json.get("textSections", [])
+            ]
+        }
+    }
+    return offer_details
+
+
 if __name__ == '__main__':
     pass
     # token = login()
     # print(token)
-    # page_html = scrapper_get_page()
+    # page_html = scrapper_get_page(OFFERS_URL)
     # save_to_file(page_html, 'offers_page.html')
     # offers = offers_parser('offers_page.html')
     # save_to_file(json.dumps(offers, indent=4), 'offers.json')
     # save_offers_to_db(offers)
-    all = db.get_all()
-    print(all)
-    db.close_connection()
+    # offer_details = get_offer_details(offers[2])
+    # save_to_file(
+    #     json.dumps(offer_details, indent=4),
+    #     'offer_details.json')
+    with open('offer_details.json', 'r') as file:
+        json_offer_details = json.load(file)
+        offer_details = extract_offer_details(json_offer_details)
+        print(json.dumps(offer_details, indent=4))

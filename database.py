@@ -47,5 +47,17 @@ class Database:
         self.cur.execute("SELECT * FROM offers")
         return self.cur.fetchall()
 
+    def get_offer_by_id(self, offer_id):
+        self.cur.execute("SELECT * FROM offers WHERE offerId=?", (offer_id,))
+        row = self.cur.fetchone()
+        if row:
+            return {
+                "offerId": row[0],
+                "title": row[1],
+                "absoluteUri": row[2],
+                "isOneClickApply": row[3]
+            }
+        return None
+
     def close_connection(self):
         self.conn.close()
