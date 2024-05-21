@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import re
@@ -6,8 +7,9 @@ import time
 import requests
 from dotenv import load_dotenv
 
-from constants import LOGIN_URL, USER_AGENT, JSON_PATTERN, OFFERS_URL
+from constants import LOGIN_URL, USER_AGENT, JSON_PATTERN, OFFERS_URL, OFFERS_HTML_TEMPLATE
 from database import Database
+from emailSender import EmailSender
 from utils import save_to_file
 
 
@@ -15,6 +17,7 @@ class PracujScrapper:
     def __init__(self):
         load_dotenv()
         self.db = Database()
+        self.email_sender = EmailSender()
 
     def login(self):
         url = LOGIN_URL
@@ -63,6 +66,7 @@ class PracujScrapper:
             return None
 
     def validate_and_save_offers(self, offers):
+        new_offers = []
         for offer in offers:
             if not self.db.offer_exists_from_json(offer):
                 id = offer['offers'][0]['partitionId']
@@ -78,9 +82,19 @@ class PracujScrapper:
                 offer_details = self.extract_offer_details(full_offer_details)
                 save_to_file(json.dumps(offer_details, indent=4),
                              f'offer_details/{id}.json')
+                new_offers.append(offer_details)
 
                 # Wait before next request to prevent ban
                 time.sleep(5)
+
+        # If new offers were found send an email.
+        if new_offers:
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            subject = f'New Job Offers - {current_time}'
+            body = self.build_email_body(new_offers)
+            self.email_sender.send_email(subject, body)
+        else:
+            print('No new offers found.')
 
     def get_offers(self):
         html = self.scrape_page(OFFERS_URL)
@@ -109,9 +123,12 @@ class PracujScrapper:
     def extract_offer_details(self, offer_json):
         offer_details = {
             "publicationDetails": {
+                "lastPublishedUtc": offer_json.get('publicationDetails', {}).get('lastPublishedUtc'),
+                "expirationDateUtc": offer_json.get('publicationDetails', {}).get('expirationDateUtc'),
                 "isActive": offer_json.get("publicationDetails", {}).get("isActive")
             },
             "attributes": {
+                "offerAbsoluteUrl": offer_json.get('attributes', {}).get('offerAbsoluteUrl'),
                 "jobTitle": offer_json.get("attributes", {}).get("jobTitle"),
                 "applying": {
                     "applyURL": offer_json.get("attributes", {}).get("applying", {}).get("applyURL"),
@@ -166,3 +183,56 @@ class PracujScrapper:
             }
         }
         return offer_details
+
+    def build_email_body(self, offers):
+        offer_sections = []
+        for offer in offers:
+            job_title = offer["attributes"]["jobTitle"]
+            location = offer["attributes"]["workplaces"][0]["inlandLocation"]["location"]["name"]
+            apply_url = offer["attributes"]["applying"].get("applyURL", "#")
+            remote_work = "Yes" if offer["attributes"]["employment"][
+                "entirelyRemoteWork"] else "No"
+            publication_date = offer["publicationDetails"][
+                "lastPublishedUtc"] if "publicationDetails" in offer else "Unknown"
+            expiration_date = offer["publicationDetails"][
+                "expirationDateUtc"] if "publicationDetails" in offer else "Unknown"
+
+            publication_date = datetime.datetime.strptime(publication_date, "%Y-%m-%dT%H:%M:%SZ").strftime(
+                "%Y-%m-%d %H:%M:%S")
+            expiration_date = datetime.datetime.strptime(expiration_date, "%Y-%m-%dT%H:%M:%SZ").strftime(
+                "%Y-%m-%d %H:%M:%S")
+
+            sections = []
+            for section in offer["attributes"]["textSections"]:
+                section_title = section.get("sectionType", "").replace("-", " ").capitalize()
+                section_content = "<br>".join(section["textElements"])
+                if section.get("sectionType") in ["technologies-expected", "technologies-optional",
+                                                  "requirements-expected",
+                                                  "requirements-optional", "work-organization-work-style",
+                                                  "work-organization-team-members", "development-practices",
+                                                  "training-space", "offered", "benefits"]:
+                    section_content = "<ul>" + "".join(f"<li>{item}</li>" for item in section["textElements"]) + "</ul>"
+                sections.append(f"""
+                <div class="section">
+                    <h3>{section_title}</h3>
+                    <p>{section_content}</p>
+                </div>
+                """)
+
+            sections_html = "".join(sections)
+            offer_sections.append(f"""
+            <div class="offer">
+                <h2>{job_title}</h2>
+                <div class="uri">
+                    <a href="{apply_url}">Apply here</a>
+                </div>
+                <p>Location: {location}</p>
+                <p>Remote work available: {remote_work}</p>
+                <p>Publication Date: {publication_date}</p>
+                <p>Expiration Date: {expiration_date}</p>
+                {sections_html}
+            </div>
+            """)
+
+        offers_html = "".join(offer_sections)
+        return OFFERS_HTML_TEMPLATE.format(offers=offers_html)
