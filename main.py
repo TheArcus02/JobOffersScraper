@@ -9,7 +9,7 @@ def scrapePracuj():
     print('scrapping offers...')
     offers_json = scrapper.get_offers()
     print('validating offers...')
-    scrapper.validate_offers(offers_json)
+    scrapper.validate_and_save_offers(offers_json)
 
 
 def testing_scrape():

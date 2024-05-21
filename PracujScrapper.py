@@ -62,12 +62,24 @@ class PracujScrapper:
             print(f'No matches found...')
             return None
 
-    def validate_offers(self, offers):
+    def validate_and_save_offers(self, offers):
         for offer in offers:
             if not self.db.offer_exists_from_json(offer):
+                id = offer['offers'][0]['partitionId']
+
+                # Save to DB
                 self.db.save_offer_from_json(offer)
+
+                # Get offer details
                 full_offer_details = self.get_offer_details(offer)
+                # Save full json to file
+                save_to_file(json.dumps(full_offer_details, indent=4), f'full_offer_details/{id}.json')
+                # Extract usefull offer details
                 offer_details = self.extract_offer_details(full_offer_details)
+                save_to_file(json.dumps(offer_details, indent=4),
+                             f'offer_details/{id}.json')
+
+                # Wait before next request to prevent ban
                 time.sleep(5)
 
     def get_offers(self):
@@ -82,17 +94,16 @@ class PracujScrapper:
 
     def get_offer_details(self, offer):
         uri = offer['offers'][0]['offerAbsoluteUri']
-        id = offer['offers'][0]['partitionId']
         if uri is None:
             print('URI not found')
             return None
         html = self.scrape_page(uri)
         save_to_file(html, 'offer_details.html', encoding='utf-8')
         offer_details_json = self.get_json_from_html(html)
-        save_to_file(json.dumps(offer_details_json, indent=4), f'full_offer_details/{id}.json')
         return offer_details_json['props']['pageProps']['dehydratedState']['queries'][0]['state']['data']
 
     def check_if_offer_fits(self, offer):
+        # Implement chatGPT to validate the offer if it fits my needs
         pass
 
     def extract_offer_details(self, offer_json):
@@ -154,5 +165,4 @@ class PracujScrapper:
                 ]
             }
         }
-        save_to_file(json.dumps(offer_details, indent=4), f'offer_details/{offer_json.get('jobOfferWebId', {})}.json')
         return offer_details
