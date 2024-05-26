@@ -142,6 +142,7 @@ class PracujScrapper:
             },
             "attributes": {
                 "offerAbsoluteUrl": offer_json.get('attributes', {}).get('offerAbsoluteUrl'),
+                "displayEmployerName": offer_json.get('attributes', {}).get('displayEmployerName'),
                 "jobTitle": offer_json.get("attributes", {}).get("jobTitle"),
                 "applying": {
                     "applyURL": offer_json.get("attributes", {}).get("applying", {}).get("applyURL"),
@@ -204,6 +205,7 @@ class PracujScrapper:
             job_title = offer["attributes"]["jobTitle"]
             location = offer["attributes"]["workplaces"][0]["inlandLocation"]["location"]["name"]
             apply_url = offer["attributes"].get('offerAbsoluteUrl', '#')
+            employer = offer["attributes"]["displayEmployerName"]
             remote_work = "Yes" if offer["attributes"]["employment"][
                 "entirelyRemoteWork"] else "No"
             publication_date = PracujScrapper.convert_date(offer["publicationDetails"][
@@ -231,7 +233,7 @@ class PracujScrapper:
             sections_html = "".join(sections)
             offer_sections.append(f"""
                 <div class="offer">
-                    <h2>{job_title}</h2>
+                    <h2>{job_title} - {employer}</h2>
                     <div class="uri">
                         <a href="{apply_url}">Apply here</a>
                     </div>
