@@ -33,3 +33,4 @@ jobs:
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
           PRACUJ_PASSWORD: ${{ secrets.PRACUJ_PASSWORD }}
           PRACUJ_LOGIN: ${{ secrets.PRACUJ_LOGIN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
