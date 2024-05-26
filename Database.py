@@ -35,13 +35,13 @@ class Database:
         self.conn.commit()
 
     def offer_exists(self, offer_id):
-        self.cur.execute("SELECT * FROM offers WHERE offerId=?", (offer_id,))
+        self.cur.execute("SELECT * FROM offers WHERE offerId=%s", (str(offer_id),))
         offer = self.cur.fetchone()
         return offer is not None
 
     def insert_offer(self, offer_id, title, absolute_uri, is_one_click_apply):
-        self.cur.execute("INSERT INTO offers VALUES (?, ?, ?, ?)",
-                         (offer_id, title, absolute_uri, is_one_click_apply))
+        self.cur.execute("INSERT INTO offers VALUES (%s, %s, %s, %s)",
+                         (str(offer_id), title, absolute_uri, is_one_click_apply))
         self.conn.commit()
 
     def offer_exists_from_json(self, offer_json):
@@ -62,7 +62,7 @@ class Database:
         return self.cur.fetchall()
 
     def get_offer_by_id(self, offer_id):
-        self.cur.execute("SELECT * FROM offers WHERE offerId=?", (offer_id,))
+        self.cur.execute("SELECT * FROM offers WHERE offerId=%s", (offer_id,))
         row = self.cur.fetchone()
         if row:
             return {
