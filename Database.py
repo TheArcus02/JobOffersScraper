@@ -1,22 +1,36 @@
-import sqlite3
+import os
+
+import psycopg2
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Database:
-    def __init__(self, db_name="offers.db"):
+    def __init__(self, db_name="job_offers"):
         self.db_name = db_name
-        self.conn = sqlite3.connect(db_name)
+        self.conn = self.connect_to_db()
         self.cur = self.conn.cursor()
         self.create_table()
 
     def __del__(self):
-        self.conn.close()
+        self.close_connection()
+
+    @staticmethod
+    def connect_to_db():
+        try:
+            connection_string = os.getenv('DATABASE_URL')
+            return psycopg2.connect(connection_string)
+        except psycopg2.OperationalError as e:
+            print(f'Error with connecting to database: {e}')
+            raise
 
     def create_table(self):
         self.cur.execute('''CREATE TABLE IF NOT EXISTS offers (
                             offerId TEXT PRIMARY KEY,
                             title TEXT,
                             absoluteUri TEXT,
-                            isOneClickApply INTEGER
+                            isOneClickApply BOOLEAN
                             )''')
         self.conn.commit()
 
@@ -60,4 +74,19 @@ class Database:
         return None
 
     def close_connection(self):
-        self.conn.close()
+        if self.conn:
+            self.conn.close()
+        if self.cur:
+            self.cur.close()
+
+    def test_connection(self):
+        self.cur.execute("SELECT NOW()")
+        time = self.cur.fetchone()[0]
+        self.cur.execute("SELECT version()")
+        version = self.cur.fetchone()[0]
+        print(time, version)
+
+
+if __name__ == '__main__':
+    db = Database()
+    db.test_connection()
