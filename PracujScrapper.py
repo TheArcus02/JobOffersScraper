@@ -90,10 +90,10 @@ class PracujScrapper:
                 # Get offer details
                 full_offer_details = self.get_offer_details(offer)
                 # Save full json to file
-                save_to_file(json.dumps(full_offer_details, indent=4), f'full_offer_details/{id}.json')
+                save_to_file(full_offer_details, f'full_offer_details/{id}.json')
                 # Extract usefull offer details
                 offer_details = self.extract_offer_details(full_offer_details)
-                save_to_file(json.dumps(offer_details, indent=4),
+                save_to_file(offer_details,
                              f'offer_details/{id}.json')
                 new_offers.append(offer_details)
 
@@ -115,7 +115,7 @@ class PracujScrapper:
             return None
         save_to_file(html, 'offers_page.html', encoding='utf-8')
         offers_json = self.get_json_from_html(html)
-        save_to_file(json.dumps(offers_json, indent=4), 'offers_page.json')
+        save_to_file(offers_json, 'offers_page.json')
         return offers_json['props']['pageProps']['data']['jobOffers']['groupedOffers']
 
     def get_offer_details(self, offer):
